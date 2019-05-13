@@ -7,28 +7,33 @@
 //
 
 import UIKit
+import WebKit
 
 class DetailViewController: UIViewController {
 
-    @IBOutlet weak var detailDescriptionLabel: UILabel!
-
+    @IBOutlet weak var webView: WKWebView!
+    
 
     func configureView() {
-        // Update the user interface for the detail item.
+        title = ""
         if let detail = detailItem {
-            if let label = detailDescriptionLabel {
-                label.text = detail.timestamp!.description
+            if let url = detail.url {
+                let request = URLRequest(url: url)
+                if let webView = webView {
+                    webView.load(request)
+                }
+                
             }
         }
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
+        
         configureView()
     }
 
-    var detailItem: Event? {
+    var detailItem: Article? {
         didSet {
             // Update the view.
             configureView()

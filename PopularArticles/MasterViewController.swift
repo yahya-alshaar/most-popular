@@ -8,48 +8,54 @@
 
 import UIKit
 import CoreData
+import SDWebImage
 
 class MasterViewController: UITableViewController, NSFetchedResultsControllerDelegate {
 
     var detailViewController: DetailViewController? = nil
     var managedObjectContext: NSManagedObjectContext? = nil
 
-
+    var model: ArticlesViewModel!
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
-        navigationItem.leftBarButtonItem = editButtonItem
-
-        let addButton = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(insertNewObject(_:)))
-        navigationItem.rightBarButtonItem = addButton
+        
         if let split = splitViewController {
             let controllers = split.viewControllers
             detailViewController = (controllers[controllers.count-1] as! UINavigationController).topViewController as? DetailViewController
+        }
+        
+        model = ArticlesViewModel()
+        
+        let childContext = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+        childContext.parent = managedObjectContext
+        model.context = childContext
+            
+        model.fetchArticles(success: { [weak self] in
+            guard
+                let context = self?.model.context,
+                context.hasChanges
+            else {
+                return
+                
+            }
+            
+            context.perform {
+                do {
+                    try context.save()
+                    try self!.managedObjectContext?.save()
+                }catch {}
+            }
+            
+            
+        }) { [weak self] (error) in
+            self?.showMessage(title: "Unable to fetch articles", message: error.localizedDescription)
         }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         clearsSelectionOnViewWillAppear = splitViewController!.isCollapsed
         super.viewWillAppear(animated)
-    }
-
-    @objc
-    func insertNewObject(_ sender: Any) {
-        let context = self.fetchedResultsController.managedObjectContext
-        let newEvent = Event(context: context)
-             
-        // If appropriate, configure the new managed object.
-        newEvent.timestamp = Date()
-
-        // Save the context.
-        do {
-            try context.save()
-        } catch {
-            // Replace this implementation with code to handle the error appropriately.
-            // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-            let nserror = error as NSError
-            fatalError("Unresolved error \(nserror), \(nserror.userInfo)")
-        }
     }
 
     // MARK: - Segues
@@ -78,9 +84,19 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
-        let event = fetchedResultsController.object(at: indexPath)
-        configureCell(cell, withEvent: event)
+        
+        let article = fetchedResultsController.object(at: indexPath)
+        
+        var identifier = "ArticleCell"
+        if article.media.isEmpty {
+            identifier = "Cell"
+        }else if article.numberOfViews < 10 {
+            identifier = "MiniArticleCell"
+        }
+        
+        let cell = tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
+        
+        configureCell(cell, withArticle: article)
         return cell
     }
 
@@ -105,24 +121,38 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
         }
     }
 
-    func configureCell(_ cell: UITableViewCell, withEvent event: Event) {
-        cell.textLabel!.text = event.timestamp!.description
+    func configureCell(_ cell: UITableViewCell, withArticle article: Article) {
+        if cell.reuseIdentifier == "ArticleCell" {
+            let cell = cell as! ArticleTableViewCell
+            cell.titleLabel.text = article.title
+            cell.mediaImageView.sd_setImage(with: article.photos(kind: .threeByTwo440), completed: nil)
+            cell.abstractLabel.text = article.abstract
+            cell.publishdateLabel.text = article.publishedAt?.displayed()
+        }else if cell.reuseIdentifier == "MiniArticleCell" {
+            let cell = cell as! MiniArticleTableViewCell
+            cell.titleLabel.text = article.title
+            cell.mediaImageView.sd_setImage(with: article.photos(kind: .threeByTwo210), completed: nil)
+        }else {
+            cell.textLabel?.text = article.title
+        }
+        
+        
     }
 
     // MARK: - Fetched results controller
 
-    var fetchedResultsController: NSFetchedResultsController<Event> {
+    var fetchedResultsController: NSFetchedResultsController<Article> {
         if _fetchedResultsController != nil {
             return _fetchedResultsController!
         }
         
-        let fetchRequest: NSFetchRequest<Event> = Event.fetchRequest()
+        let fetchRequest: NSFetchRequest<Article> = Article.fetchRequest()
         
         // Set the batch size to a suitable number.
         fetchRequest.fetchBatchSize = 20
         
         // Edit the sort key as appropriate.
-        let sortDescriptor = NSSortDescriptor(key: "timestamp", ascending: false)
+        let sortDescriptor = NSSortDescriptor(key: "publishedAt", ascending: false)
         
         fetchRequest.sortDescriptors = [sortDescriptor]
         
@@ -143,7 +173,7 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
         
         return _fetchedResultsController!
     }    
-    var _fetchedResultsController: NSFetchedResultsController<Event>? = nil
+    var _fetchedResultsController: NSFetchedResultsController<Article>? = nil
 
     func controllerWillChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
         tableView.beginUpdates()
@@ -167,9 +197,9 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
             case .delete:
                 tableView.deleteRows(at: [indexPath!], with: .fade)
             case .update:
-                configureCell(tableView.cellForRow(at: indexPath!)!, withEvent: anObject as! Event)
+                configureCell(tableView.cellForRow(at: indexPath!)!, withArticle: anObject as! Article)
             case .move:
-                configureCell(tableView.cellForRow(at: indexPath!)!, withEvent: anObject as! Event)
+                configureCell(tableView.cellForRow(at: indexPath!)!, withArticle: anObject as! Article)
                 tableView.moveRow(at: indexPath!, to: newIndexPath!)
         }
     }
@@ -178,6 +208,9 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
         tableView.endUpdates()
     }
 
+    func fetchSources() {
+        
+    }
     /*
      // Implementing the above methods to update the table view in response to individual changes may have performance implications if a large number of changes are made simultaneously. If this proves to be an issue, you can instead just implement controllerDidChangeContent: which notifies the delegate that all section and object changes have been processed.
      
