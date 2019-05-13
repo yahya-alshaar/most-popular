@@ -7,28 +7,26 @@
 //
 
 import XCTest
+import Foundation
 @testable import PopularArticles
 
 class PopularArticlesTests: XCTestCase {
 
-    override func setUp() {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-    }
+    func testTimeAgoSettings() {
+        let oneDayAgo = Date(timeIntervalSinceNow: -1 * 60 * 60 * 24)
+        let oneDayAgoDisplay = oneDayAgo.displayed()
+        
+        XCTAssertEqual(oneDayAgoDisplay, "Yesterday")
+        
+        let threeDaysAgo = Date(timeIntervalSinceNow: -3 * 60 * 60 * 24)
+        let threeDaysAgoDisplay = threeDaysAgo.displayed()
 
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
-
-    func testExample() {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-    }
-
-    func testPerformanceExample() {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
-        }
+        XCTAssertEqual(threeDaysAgoDisplay, "3 days ago")
+        
+        let oneWeekAgo = Date(timeIntervalSinceNow: -7 * 60 * 60 * 24)
+        let oneWeekAgoDisplay = oneWeekAgo.displayed()
+        
+        XCTAssertEqual(oneWeekAgoDisplay, "1w ago")
     }
 
 }

@@ -11,13 +11,13 @@ import Foundation
 extension Date {
     func displayed() -> String {
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.day], from: Date())
+        let components = calendar.dateComponents([.day], from: self, to: Date())
         
         guard let day = components.day else {
             return formatter.string(from: self)
         }
         
-        switch day {
+        switch (day) {
         case 0:
             return "Today"
         case 1:
